@@ -73,3 +73,49 @@ app.post('/login', (req, res) => {
 app.listen(PORT, () => {
     console.log(`Servidor rodando em http://localhost:${PORT}`);
 });
+
+let ranking = []; 
+
+// Middlewares
+app.use(express.json()); 
+app.use(cors()); 
+
+// ===============================================
+// Rota para RECEBER e SALVAR a Pontuação (POST /ranking)
+// ===============================================
+app.post('/ranking', (req, res) => {
+    const { email, score } = req.body;
+    
+    if (!email || typeof score !== 'number' || score < 0) {
+        return res.status(400).json({ message: "Dados inválidos." });
+    }
+
+    const newEntry = { email, score, timestamp: Date.now() };
+    
+    ranking.push(newEntry);
+
+    console.log("------------------------------------------");
+    console.log(`Nova Pontuação Salva: Email: ${email}, Pontuação: ${score}`);
+    console.log("------------------------------------------");
+    
+    // Reordena o ranking (maior para menor) e mantém o top 10
+    ranking.sort((a, b) => b.score - a.score);
+    ranking = ranking.slice(0, 10); 
+    
+    return res.status(200).json({ message: "Pontuação salva com sucesso!" });
+});
+
+
+// ===============================================
+// Rota para ENVIAR o Ranking (GET /ranking)
+// ===============================================
+app.get('/ranking', (req, res) => {
+    // Envia o array de ranking ordenado
+    return res.status(200).json(ranking);
+});
+
+
+// Inicia o servidor
+app.listen(PORT, () => {
+    console.log(`Servidor de Ranking rodando em http://localhost:${PORT}`);
+});
