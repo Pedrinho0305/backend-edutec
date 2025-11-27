@@ -222,6 +222,6 @@ async function handleDatabaseConnection() {
     } catch (err) {
         console.error("Erro ao conectar ou inicializar o MySQL:", err);
         // Termina o processo se a conexão falhar
-        process.exit(1); 
+        process.exit(1);
     }
 }
