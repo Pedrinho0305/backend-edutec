@@ -98,10 +98,10 @@ app.use(bodyParser.json());
 
 // --- Configuração do Banco de Dados ---
 const dbConfig = {
-    host: 'benserverplex.ddns.net',       // ou o endereço do seu servidor MySQL
-    user: 'alunos',     // SEU USUÁRIO MySQL
-    password: 'senhaAlunos',   // SUA SENHA MySQL
-    database: 'pontuacao_email'    // O NOME DO SEU BANCO DE DADOS
+    host: DB_HOST,       // ou o endereço do seu servidor MySQL
+    user: DB_USER,     // SEU USUÁRIO MySQL
+    password: DB_PASSWORD,   // SUA SENHA MySQL
+    database: DB_NAME    // O NOME DO SEU BANCO DE DADOS
 };
 
 let connection;
