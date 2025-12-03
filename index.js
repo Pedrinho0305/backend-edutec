@@ -156,7 +156,7 @@ app.post('/update-score', (request, response) => {
         } else {
             // Score não é um novo recorde
             return response.status(200).json({ 
-                message: 'Pontuação enviada, mas não é um novo recorde.', 
+                message: 'Pontuação enviada, mas não é um novo recorde.',
                 currentScore: currentScore 
             });
         }
