@@ -1,133 +1,135 @@
-// index.js (CommonJS - Mais robusto para Vercel Serverless)
+import express from "express";
+import cors from "cors";
+import mysql2 from "mysql2";
 
-const express = require('express');
-const cors = require('cors');
-// Usamos o módulo 'promise' do mysql2 para o async/await
-const mysql = require('mysql2/promise'); 
-// Pacote para ler o arquivo .env localmente
-const dotenv = require('dotenv'); 
+// --- Configuração do Ambiente e Aplicação ---
 
-// Carrega as variáveis de ambiente do .env para testes locais
-// (A Vercel e o seu script 'nodemon' já cuidam disso em produção)
-dotenv.config(); 
+const { DB_HOST, DB_NAME, DB_USER, DB_PASSWORD } = process.env;
 
 const app = express();
-
-// Configuração do Banco de Dados
-const dbConfig = {
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-};
-
-// Middlewares
-app.use(cors());
-app.use(express.json());
-
-// Função para criar e retornar uma nova conexão (chamada em cada rota)
-async function getConnection() {
-    return await mysql.createConnection(dbConfig); 
-}
-
-// =======================================================
-// Rota GET /
-// =======================================================
-app.get("/", async (request, response) => {
-    let connection;
-    try {
-        connection = await getConnection(); 
-        const selectCommand = "SELECT name, email FROM pedrohenrique_02mb";
-        const [users] = await connection.execute(selectCommand); 
-        response.json(users);
-        
-    } catch (error) {
-        console.error("Erro na rota GET /:", error);
-        response.status(500).json({ message: "Erro interno do servidor." });
-    } finally {
-        // ESSENCIAL: Garante que a conexão seja fechada
-        if (connection) {
-            await connection.end(); 
-        }
-    }
-});
-
-// =======================================================
-// Rota POST /login
-// =======================================================
-app.post("/login", async (request, response) => {
-    let connection;
-    try {
-        connection = await getConnection();
-        const { email, password } = request.body.user;
-        const selectCommand = "SELECT * FROM pedrohenrique_02mb WHERE email = ?";
-        const [userRows] = await connection.execute(selectCommand, [email]); 
-        
-        if (userRows.length === 0 || userRows[0].password !== password) {
-            return response.status(401).json({ message: "Usuário ou senha incorretos!" });
-        }
-
-        const user = userRows[0];
-        response.json({ id: user.id, name: user.name });
-
-    } catch (error) {
-        console.error("Erro na rota POST /login:", error);
-        response.status(500).json({ message: "Erro interno do servidor!" });
-    } finally {
-        if (connection) {
-            await connection.end();
-        }
-    }
-});
-
-// =======================================================
-// Rota POST /cadastrar
-// =======================================================
-app.post("/cadastrar", async (request, response) => {
-    let connection;
-    try {
-        connection = await getConnection();
-        const { user } = request.body;
-        
-        // 1. Verificar se o usuário já existe
-        const checkCommand = "SELECT email FROM pedrohenrique_02mb WHERE email = ?";
-        const [existing] = await connection.execute(checkCommand, [user.email]);
-        if (existing.length > 0) {
-            return response.status(409).json({ message: "Este e-mail já está cadastrado." });
-        }
-        
-        // 2. Insere novo usuário
-        const insertCommand = `
-            INSERT INTO pedrohenrique_02mb(name, email, password)
-            VALUES (?, ?, ?)
-        `;
-        await connection.execute(insertCommand, [user.name, user.email, user.password]);
-        
-        response.status(201).json({ message: "Usuário cadastrado com sucesso!" });
-        
-    } catch (error) {
-        console.error("Erro na rota POST /cadastrar:", error);
-        response.status(500).json({ message: "Erro interno do servidor." });
-    } finally {
-        if (connection) {
-            await connection.end();
-        }
-    }
-});
-
-// =======================================================
-// Bloco Híbrido (Para testes locais)
-// =======================================================
-
+// Nota: A porta 3333 só é usada localmente; na Vercel, o ambiente cuida disso.
 const port = 3333; 
 
-// Só executa o app.listen() se o ambiente NÃO for de produção (Vercel)
-if (process.env.NODE_ENV !== 'production') {
-    app.listen(port, () => {
-        console.log(`\n[LOCAL MODE] Servidor rodando em http://localhost:${port}`);
+// --- Configuração do CORS OTIMIZADA ---
+// Adicionando opções explícitas para permitir todas as origens, métodos e headers.
+// Isso é crucial para que o navegador não bloqueie o 'fetch' de fora do 'localhost'.
+const corsOptions = {
+    origin: '*', // Permite qualquer domínio (CRUCIAL para Vercel/Produção)
+    methods: ['GET', 'POST'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
+app.use(cors(corsOptions)); 
+app.use(express.json()); 
+
+// --- Inicialização do Banco de Dados ---
+const database = mysql2.createPool({
+    host: DB_HOST,
+    database: DB_NAME,
+    user: DB_USER,
+    password: DB_PASSWORD,
+    connectionLimit: 10
+});
+
+// --- Definição das Rotas da API (Sem Alterações na Lógica) ---
+
+/** Rota GET /: Lista de Usuários */
+app.get("/", (request, response) => {
+    const selectCommand = "SELECT name, email, score FROM pedrohenrique_02mb"; 
+
+    database.query(selectCommand, (error, users) => {
+        if (error) {
+            console.error("Erro na consulta GET /:", error);
+            return response.status(500).json({ message: "Erro ao buscar usuários." }); 
+        }
+        response.json(users);
     });
-}
+});
+
+/** Rota POST /login: Autenticação */
+app.post("/login", (request, response) => {
+    const { email, password } = request.body.user;
+    const selectCommand = "SELECT id, name, password, score FROM pedrohenrique_02mb WHERE email = ?";
+
+    database.query(selectCommand, [email], (error, user) => {
+        if (error) {
+            console.error("Erro na consulta POST /login:", error);
+            return response.status(500).json({ message: "Erro interno do servidor." });
+        }
+        if (user.length === 0 || user[0].password !== password) {
+            return response.status(401).json({ message: "Usuário ou senha incorretos!" });
+        }
+        response.json({ id: user[0].id, name: user[0].name, score: user[0].score });
+    });
+});
+
+/** Rota POST /cadastrar: Cadastro de Usuário */
+app.post("/cadastrar", (request, response) => {
+    const { user } = request.body;
+    
+    const insertCommand = `
+        INSERT INTO pedrohenrique_02mb(name, email, password, score)
+        VALUES (?, ?, ?, 0)
+    `;
+
+    database.query(insertCommand, [user.name, user.email, user.password], (error) => {
+        if (error) {
+            console.error("Erro na consulta POST /cadastrar:", error);
+            return response.status(409).json({ message: "Erro ao cadastrar usuário. O email pode já estar em uso." });
+        }
+        response.status(201).json({ message: "Usuário cadastrado com sucesso!" });
+    });
+});
+
+/**
+ * Rota POST /update-score: Atualização de Pontuação (Novo Recorde)
+ */
+app.post('/update-score', (request, response) => {
+    const { email, newScore } = request.body;
+
+    if (!email || typeof newScore !== 'number') {
+        return response.status(400).json({ message: 'Dados inválidos. Email e newScore são obrigatórios.' });
+    }
+
+    const selectCommand = 'SELECT score FROM pedrohenrique_02mb WHERE email = ?';
+
+    database.query(selectCommand, [email], (error, results) => {
+        if (error) {
+            console.error('Erro ao buscar score atual:', error);
+            return response.status(500).json({ message: 'Erro interno ao buscar dados.' });
+        }
+        
+        if (results.length === 0) {
+            return response.status(404).json({ message: 'Usuário não encontrado.' });
+        }
+
+        const currentScore = results[0].score || 0;
+        
+        if (newScore > currentScore) {
+            const updateCommand = 'UPDATE pedrohenrique_02mb SET score = ? WHERE email = ?';
+            
+            database.query(updateCommand, [newScore, email], (updateError) => {
+                if (updateError) {
+                    console.error('Erro ao atualizar score:', updateError);
+                    return response.status(500).json({ message: 'Erro interno ao salvar novo recorde.' });
+                }
+                
+                return response.status(200).json({ 
+                    message: 'Novo recorde salvo com sucesso!', 
+                    newHighScore: newScore 
+                });
+            });
+        } else {
+            return response.status(200).json({ 
+                message: 'Pontuação enviada, mas não é um novo recorde.', 
+                currentScore: currentScore 
+            });
+        }
+    });
+});
 
 
-// Exporta o app. Este é o ponto de entrada Serverless para a Vercel.
-module.exports = app;
+// --- Inicialização do Servidor ---
+app.listen(port, () => {
+    console.log(`Server Running on port ${port}`);
+});
