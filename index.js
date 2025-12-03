@@ -113,7 +113,7 @@ app.post("/cadastrar", (request, response) => {
 app.post('/update-score', (request, response) => {
     const { email, newScore: scoreData } = request.body;
     
-    // Garante que o score enviado é um número inteiro
+    // Garante que o score enviado é um número (CORREÇÃO DE TIPAGEM)
     const newScore = Number(scoreData); 
 
     if (!email || typeof newScore !== 'number' || isNaN(newScore)) {
@@ -121,9 +121,6 @@ app.post('/update-score', (request, response) => {
             message: 'Dados inválidos. Email e newScore devem ser um número válido.'
         });
     }
-    
-    // AQUI ESTÁ A MUDANÇA: REMOVEMOS A BUSCA E A COMPARAÇÃO.
-    // Agora, apenas executamos o comando de UPDATE direto.
 
     const updateCommand = 'UPDATE pedrohenrique_02mb SET score = ? WHERE email = ?';
     
@@ -133,12 +130,10 @@ app.post('/update-score', (request, response) => {
             return response.status(500).json({ message: 'Erro interno ao salvar pontuação.' });
         }
 
-        if (result.affectedRows === 0) {
-            // Caso o email exista no frontend mas não no DB
+        if (result && result.affectedRows === 0) {
             return response.status(404).json({ message: 'Usuário não encontrado para atualizar a pontuação.' });
         }
         
-        // Sucesso: Pontuação substituída
         return response.status(200).json({ 
             message: 'Pontuação final salva com sucesso!', 
             finalScore: newScore 
